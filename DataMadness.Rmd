@@ -1,0 +1,96 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+library(ggmap)
+library(ggplot2)
+
+library(gganimate)
+library(dplyr)
+
+crimes <- read.csv("Crimes.csv", header = TRUE,stringsAsFactors=FALSE)
+crimes <- crimes[,c(1,2,4:7,10,11)]
+#crimes <- data.frame(crimes$IncidntNum,crimes$Category,crimes$DayOfWeek,crimes$Date,crimes$Time,crimes$PdDistrict,crimes$X, crimes$Y)
+
+```
+
+```{r}
+map <- get_map(location = c(lon = -122.417714, lat=37.794124), zoom = 15, maptype = "terrain")
+```
+
+```{r}
+
+
+assault <- crimes[crimes$Category == "ASSAULT",]
+thief <- crimes[crimes$Category == "BURGLARY",]
+vandalism <- crimes[crimes$Category == "VANDALISM",]
+intoxication <- crimes[crimes$Category == "DRUNKNESS" | crimes$Category == "DRUG/NARCOTIC",]
+
+plot(map)
+
+ggmap(map) + 
+geom_point(aes(x=assault$X, y=assault$Y, show_guide = TRUE, colour="assault"),
+           data=assault, alpha=.6, na.rm = T) +
+geom_point(aes(x=thief$X, y=thief$Y, show_guide = TRUE, colour="thief"),
+     data=thief, alpha=.5, na.rm = T) +
+geom_point(aes(x=intoxication$X, y=intoxication$Y, show_guide = TRUE, colour="intoxication"), 
+        data=intoxication, alpha=.5, na.rm = T)  + scale_color_manual(values = c("assault"="red" , "thief"= "cyan3","intoxication"= "purple"))
+
+crimePoint <- assault[assault$X > -122.419633 & assault$X < -122.416469 & assault$Y > 37.786311 & assault$Y <37.802016,]
+crimeThief <- thief[thief$X > -122.419633 & thief$X < -122.416469 & thief$Y > 37.786311 & thief$Y <37.802016,]
+crimeDrunk <- intoxication[intoxication$X> -122.419633 & intoxication$X < -122.416469 & intoxication$Y > 37.786311 & intoxication$Y <37.802016,]
+
+ggmap(map)  + 
+          geom_point(aes(x=crimeThief$X, y=crimeThief$Y, show_guide = TRUE, colour="thief"),
+           data=crimeThief, alpha=.6, na.rm = T) +
+  geom_point(aes(x=crimePoint$X, y=crimePoint$Y, show_guide = TRUE, colour="assault"),
+           data=crimePoint, alpha=.6, na.rm = T) +
+   geom_point(aes(x=crimeDrunk$X, y=crimeDrunk$Y, show_guide = TRUE, colour="intoxication"),
+           data=crimeDrunk, alpha=.6, na.rm = T)
+
+crime.anim <- rbind(crimePoint,crimeThief)
+crime.anim <- rbind(crime.anim,crimeDrunk)
+crime.anim <- crime.anim[,c(2,7,8)]
+crime.anim$step <- -122.419633
+crime.anim$alpha <- 0
+
+c.default <- crime.anim
+
+y <- function(x){
+  slope <- (37.786311-37.802016)/(-122.416469 +122.419633)
+  return(slope*(x+122.416469)+37.786311)
+}
+
+for(x in seq(from=-122.419633, to=-122.416469, length.out=100)){
+  new.crime <- c.default
+  new.crime$step <- x
+  new.crime$alpha[new.crime$Y >= y(x)] = 1
+  new.crime <- rbind(new.crime, c("WALK",  x, y(x), x,1))
+  crime.anim <- rbind(crime.anim, new.crime)
+}
+crime.anim$X = as.numeric(crime.anim$X)
+crime.anim$Y = as.numeric(crime.anim$Y)
+crime.anim$Category[crime.anim$Category == "ASSAULT"] = "red"
+crime.anim$Category[crime.anim$Category == "BURGLARY"] = "cyan3"
+crime.anim$Category[crime.anim$Category == "DRUG/NARCOTIC"] = "purple"
+crime.anim$Category[crime.anim$Category == "WALK"] = "black"
+p <- ggmap(map)
+suppressWarnings(p <- p +
+                   geom_point(aes(X, Y, show_guide = TRUE, frame=step), data=crime.anim, alpha=crime.anim$alpha,color=crime.anim$Category, na.rm = T) 
+              #+ scale_color_manual(values = c("ASSAULT"="red" , "BURGLARY"= "cyan3","DRUG/NARCOTIC"= "purple", "WALK"="black"))
+)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.show = "animate")
+gganimate(p, filename = "animation.gif", title_frame = FALSE, interval=0.15)
+
+# anim <- crime.anim %>% arrange(step) %>%
+#   select(X, Y, Category, alpha) %>%
+#   rename(x=X, y=Y, )
+# anim.tween <- tween_elements(anim,)
+```
+
+
