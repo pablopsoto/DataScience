@@ -1,0 +1,137 @@
+---
+title: "Kaggle"
+author: "Pablo Perez and Nordine Aouni"
+date: "4/9/2018"
+output: html_document
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(DAAG)
+library(MASS)
+library(lattice)
+library(doBy)
+library(corrplot)
+library(dplyr)
+library(tidyr)
+library(leaps)
+library(ggplot2)
+library(caret)
+library(broom)
+library(glmnet)
+```
+
+#loading files
+```{r}
+
+docs <- read.csv("train.csv", header = TRUE, na.strings = c("") )
+test <- read.csv("test.csv", header = TRUE, na.strings = c("") )
+#Overview of the structure of the dataset
+head(docs)
+
+#Overview of each variable including the data type
+str(docs)
+
+#Statistics for each variable (Min, Median, Mean, Quartiles, Max)
+summary(docs)
+
+```
+
+
+#Introductory linear regression, lm
+```{r}
+lm.multiple1=lm(shares~., data=docs)
+summary(lm.multiple1, correlation=TRUE)
+
+lm.multiple1=lm(shares~., data=docs[,c(1,6,7,8,10,13,18,19,20,21,37,45)])
+summary(lm.multiple1, correlation=TRUE)
+
+lm.multiple1=lm(shares~., data=docs[,c(6,10,13,18,19,20,21,37,45)])
+summary(lm.multiple1, correlation=TRUE)
+```
+
+#multiple lm, not used for a solution to the kaggle competition, just as a test.
+```{r}
+
+#Training and cross-validation
+training <- docs
+testing <- test
+
+model <- lm(shares~., training[,c(6,10,13,18,19,20,21,37,45)]) # Train model
+prediction = predict(model, testing, interval="confidence") # Predict
+
+prediction[1:10,]
+
+RSS3 = sum(model$residuals^2)
+RSE3 = sqrt(1/(dim(uni)[1]-2)*RSS3)
+
+RSE3
+
+glance(model)
+
+x = model.matrix(Apps~., uni)[,-1]
+y = uni$Apps
+
+cv.out=cv.glmnet(x[train1,], y[train1], alpha=0 )
+plot(cv.out)
+
+bestlam <- cv.out$lambda.min
+bestlam
+
+cv.pred = predict(cv.out,s=bestlam,x[-train1,]) 
+
+TSS = sum((y[-train1]-mean(y[-train1]))^2)
+RSS = sum((cv.pred-y[-train1])^2)
+linear.r2 = 1-(RSS/TSS)
+```
+
+
+#Gradient Boosting Algorithm
+```{r}
+
+library(gbm)
+library(caret)
+
+library(AUC)
+
+train <- read.csv("train.csv",  header = TRUE, na.strings = c(""))
+test <-  read.csv("test.csv", header = TRUE, na.strings = c("") )
+
+#sets for training and cross-validation
+set.seed(999)
+ind <- sample(2, nrow(train), replace=T, prob=c(0.60,0.40))
+trainData<-train[ind==1,]
+testData <- train[ind==2,]
+
+set.seed(999)
+ind1 <- sample(2, nrow(testData), replace=T, prob=c(0.50,0.50))
+trainData_ens1<-testData[ind1==1,]
+testData_ens1 <- testData[ind1==2,]
+
+#fit control method
+fitControl <- trainControl(method = "repeatedcv", number = 4, repeats = 4)
+
+#training
+set.seed(33)
+gbmFit1 <- train(shares ~ ., data = trainData[,c(6,10,13,18,19,20,21,37,45)], method = "gbm", trControl = fitControl,verbose = FALSE)
+
+#predictions for training set
+gbm_dev <- predict(gbmFit1, trainData) 
+#gbm_ITV1 <- predict(gbmFit1, trainData_ens1)
+#gbm_ITV2 <- predict(gbmFit1, testData_ens1)
+result <- predict(gbmFit1, test)
+
+#comparison against real values
+auc(accuracy(gbm_dev,trainData$shares))
+#auc(trainData_ens1$shares,gbm_ITV1)
+#auc(testData_ens1$shares,gbm_ITV2)
+
+
+#All of this is to create the file for the results
+m <- matrix(0, nrow=9911, ncol = 0)
+
+m <- as.data.frame(m)
+
+m$shares <- round(result, digits = 0)
+
+write.csv(m,file= "sharesPredict.csv")
+```

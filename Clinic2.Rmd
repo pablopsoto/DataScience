@@ -1,0 +1,292 @@
+---
+title: "Clinic2"
+author: "Pablo Perez"
+date: "3/3/2018"
+output: html_document
+---
+
+Import libraries
+```{r, message=FALSE, warning=FALSE}
+library(DAAG)
+library(MASS)
+library(lattice)
+library(doBy)
+library(corrplot)
+library(dplyr)
+library(tidyr)
+library(leaps)
+library(ggplot2)
+library(caret)
+library(broom)
+library(glmnet)
+```
+
+```{r}
+uni <- read.csv2("uni.csv", header = TRUE, na.strings = c("") )
+
+#Overview of the structure of the dataset
+head(uni)
+
+#Overview of each variable including the data type
+str(uni)
+
+#Statistics for each variable (Min, Median, Mean, Quartiles, Max)
+summary(uni)
+
+colnames(uni)[1] <- "Name"
+rownames(uni) <- uni$Name
+uni$Name <- NULL
+
+```
+
+# Cleaning variables
+```{r}
+#Change NA values to the mean of that variable so that no important data is lost
+uni$Grad.Rate[is.na(uni$Grad.Rate)] <- mean(uni$Grad.Rate, na.rm= TRUE)
+
+uni$Private[uni$Private=="NB"] <- "Yes"
+
+uni[,"S.F.Ratio"] <- as.double(uni[,"S.F.Ratio"])
+
+summary(uni)
+
+```
+
+# Linear regression predictor
+```{r}
+
+#Using Accepted candidates as a predicor for applications with simple Linear Regression
+lm.accept <- lm(Apps ~ Accept, data = uni)
+
+summary(lm.accept)
+
+confint(lm.accept)
+
+#Predictions
+predict(lm.accept, uni[1:10,c(2,3)], interval="confidence")
+predict(lm.accept, uni[1:10,c(2,3)], interval="prediction")
+
+#plots
+plot(uni$Accept,uni$Apps)
+abline(lm.accept, col="red")
+
+#Using Enrolled candidates as a predicor for applications with simple Linear Regression
+lm.enroll <- lm(Apps ~ Enroll, data = uni)
+
+summary(lm.enroll)
+
+confint(lm.enroll)
+
+#Predictions
+predict(lm.enroll, uni[1:10,c(2,4)], interval="confidence")
+predict(lm.enroll, uni[1:10,c(2,4)], interval="prediction")
+
+#plots
+plot(uni$Enroll,uni$Apps)
+abline(lm.enroll, col="red")
+
+#Using Top 10 percent as a predicor for applications with simple Linear Regression
+lm.top10 <- lm(Apps ~ Top10perc, data = uni)
+summary(lm.top10)
+
+confint(lm.top10)
+plot(uni$Top10perc,uni$Apps)
+abline(lm.top10, col="red")
+
+#Using Top 25 percent as a predicor for applications with simple Linear Regression
+lm.top25 <- lm(Apps ~ Top25perc, data = uni)
+summary(lm.top25)
+
+confint(lm.top25)
+plot(uni$Top25perc,uni$Apps)
+abline(lm.top25, col="red")
+
+#Using number of part time and full time undergraduates as a predicor for applications with simple Linear Regression
+lm.under <- lm(Apps ~ (F.Undergrad + P.Undergrad), data = uni)
+summary(lm.under)
+
+confint(lm.under)
+plot((uni$F.Undergrad+uni$P.Undergrad),uni$Apps)
+abline(lm.under, col="red")
+
+#Using Out-of-state tuition as a predicor for applications with simple Linear Regression
+lm.out <- lm(Apps ~ Outstate, data = uni)
+summary(lm.out)
+
+confint(lm.out)
+plot(uni$Outstate,uni$Apps)
+abline(lm.out, col="red")
+
+#Using Room and board costs tuition as a predicor for applications with simple Linear Regression
+lm.room <- lm(Apps ~ Room.Board, data = uni)
+summary(lm.room)
+
+confint(lm.room)
+plot(uni$Room.Board,uni$Apps)
+abline(lm.room, col="red")
+
+#Using estimated book costs as a predicor for applications with simple Linear Regression
+lm.books <- lm(Apps ~ Books, data = uni)
+summary(lm.books)
+
+confint(lm.books)
+plot(uni$Books, uni$Apps)
+abline(lm.books, col="red")
+
+#Using personal spending as a predicor for applications with simple Linear Regression
+lm.personal <- lm(Apps ~ Personal, data = uni)
+summary(lm.personal)
+
+confint(lm.personal)
+plot(uni$Personal,uni$Apps)
+abline(lm.personal, col="red")
+
+#Using Instructional expenditure per student spending as a predicor for applications with simple Linear Regression
+lm.money <- lm(Apps ~ Expend, data = uni)
+summary(lm.money)
+
+confint(lm.money)
+plot(uni$Expend,uni$Apps)
+abline(lm.money, col="red")
+
+#Using graduation rate as a predicor for applications with simple Linear Regression
+lm.grad <- lm(Apps ~ Grad.Rate, data = uni)
+summary(lm.grad)
+
+confint(lm.grad)
+plot(uni$Grad.Rate,uni$Apps)
+abline(lm.grad, col="red")
+
+par(mfrow=c(2,2))
+plot(lm.accept)
+#anova(fititi)
+
+cor(uni$Apps,uni$Accept)
+cor(uni$Apps,uni$Enroll)
+cor(uni$Top10perc,uni$Apps)
+cor(uni$Apps,uni$Top25perc)
+cor(uni$Apps,(uni$F.Undergrad+uni$P.Undergrad))
+cor(uni$Apps,uni$Outstate)
+cor(uni$Apps,uni$Room.Board)
+cor(uni$Apps,uni$Books)
+cor(uni$Apps,uni$Personal)
+cor(uni$Apps,uni$Grad.Rate)
+
+```
+Results for linear Regression: The correlation between the applications and the different predictors is only high on the variables Accept, Enrolled and the sum of part time and full time undergraduates. This is shown by the 3 corresponding graphs, which have a more positive gradient and less noise than the rest of graphs. Taking a look at the residuals is also a good measure for the fitness of the linear regression predictor. We can see that on those three previously mentioned predictors, the distribution of the residuals is more normal or symmetrical than on the rest of predictors. 
+
+# Multiple regression
+```{r}
+
+lm.multiple1=lm(Apps~., data=uni[,-1])
+summary(lm.multiple1, correlation=TRUE)
+
+```
+Results for multiple regression: Using all the predictors, multiple regression is able to improve the linear regression response made by the "Accept" predictor only, increasing the multiple R-squared:0.8901 and the adjusted R-squared: 0.89 ("Accept" linear regression values) to 0.9284 and 0.9268 respectively. The residual values are also more normally distributed as Min:-5031.7 1Q:-435.8 Median:-28.4 3Q: 328.1 Max: 8617.7. If we set the significance level to 0.001 which is a really strong threshold, we can reject the null hypothesis H0 for the predictors: Accept, Top10perc, Outsate and Expend. If we set the significance level to 0.01 which is an appropriate level, the following predictor would get added to the previous list: Enroll, Top25perc, Room.Board, S.F.Ratio and Grad.Rate.
+
+```{r}
+#Trying to find better results computing multiple regression only with the most influential predictors
+lm.multiple2=lm(Apps~., data=uni[,c(1:6)])
+lm.multiple3=lm(Apps~., data=uni[,c(1:6,9,10,15,17,18)])
+lm.multiple4=lm(Apps~., data=uni[,c(1,2,3,5,9,17)])
+
+summary(lm.multiple2, correlation=TRUE)
+summary(lm.multiple3, correlation=TRUE)
+summary(lm.multiple4, correlation=TRUE)
+```
+This subsets of predictos did not result in an improvement of the multiple regression using all of them. The multiple R-squared and the adjusted R-squared values did not increase as well as the residual values distribution got less normally distributed. This may indicate that all the predictors help to determine the number of applications although they may not have a high correlation.
+
+# Split Dataset and perform cross-validation
+```{r}
+size1 <- floor(0.75 * nrow(uni))
+set.seed(123)
+train1 <- sample(seq_len(nrow(uni)), size = size1)
+
+training <- uni[train1, ]
+testing <- uni[-train1, ]
+
+model <- lm(Apps~., training) # Train model
+prediction = predict(model, testing, interval="confidence") # Predict
+
+prediction[1:10,]
+
+RSS3 = sum(model$residuals^2)
+RSE3 = sqrt(1/(dim(uni)[1]-2)*RSS3)
+
+RSE3
+
+glance(model)
+
+#RSE: 863.73 and R-squared: 0.94.
+
+x = model.matrix(Apps~., uni)[,-1]
+y = uni$Apps
+
+cv.out=cv.glmnet(x[train1,], y[train1], alpha=0 )
+plot(cv.out)
+
+bestlam <- cv.out$lambda.min
+bestlam
+
+cv.pred = predict(cv.out,s=bestlam,x[-train1,]) 
+
+TSS = sum((y[-train1]-mean(y[-train1]))^2)
+RSS = sum((cv.pred-y[-train1])^2)
+linear.r2 = 1-(RSS/TSS)
+```
+
+
+# Ridge regression and Lasso regression
+```{r}
+#Ridge
+x=model.matrix(Apps~.,uni)[,-1]
+y=uni$Apps
+
+grid=10^seq(10,-2,length=100)
+ridge.mod=glmnet(x[train1,], y[train1], alpha=0, lambda=grid)
+plot(ridge.mod)
+
+cv.out=cv.glmnet(x[train1,],y[train1],alpha=0)
+plot(cv.out)
+
+bestlam=cv.out$lambda.min
+bestlam
+ridge.pred=predict(ridge.mod,s=bestlam,x[-train1,])
+
+#MSE:
+mean((ridge.pred-y[-train1])^2)
+
+out=glmnet(x,y,alpha=0)
+predict(out,type="coefficients",s=bestlam)[1:19,]
+
+TSS = sum((y[-train1]-mean(y[-train1]))^2)
+RSS = sum((ridge.pred-y[-train1])^2)
+ridge.r2 = 1-(RSS/TSS)
+
+#Lasso
+lasso.mod=glmnet(x[train1,],y[train1],alpha=1,lambda=grid)
+plot(lasso.mod)
+
+cv.out=cv.glmnet(x[train1,],y[train1],alpha=1) 
+plot(cv.out)
+bestlam=cv.out$lambda.min
+bestlam
+lasso.pred=predict(lasso.mod,s=bestlam,x[-train1,])
+mean((lasso.pred-y[-train1])^2)
+
+TSS = sum((y[-train1]-mean(y[-train1]))^2)
+RSS = sum((lasso.pred-y[-train1])^2)
+lasso.r2 = 1-(RSS/TSS)
+
+#R-squared for linear regression
+linear.r2 
+
+#R-squared for ridge regression
+ridge.r2
+
+#R-squared for lasso regression
+lasso.r2
+```
+
+The good R-squared values for the three cross-validation models indicate that we can predict accurately the number of applications received.
+

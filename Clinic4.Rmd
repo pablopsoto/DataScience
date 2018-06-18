@@ -1,0 +1,598 @@
+---
+title: "Clinic4"
+author: "Pablo Perez"
+date: "3/11/2018"
+output: html_document
+---
+
+#Loading libraries
+```{r, message=FALSE}
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("EBImage")
+#biocLite("CRImage")
+
+library(EBImage)
+library(CRImage)
+```
+
+
+#Image Basics and Histograms, (Image1).
+```{r}
+image = readImage("image1.jpg")
+display(image, method="raster")
+plot(image)
+str(image)
+
+#Convert image to gray values
+grayImage <- EBImage::channel(image,"gray")
+
+#The resulting matrix has size 640x427, 3 times smaller than the colored image matrix with size 640x427x3
+str(grayImage)
+plot(grayImage)
+
+#binary image
+lenab=grayImage
+lenab[lenab>0.2]=1
+lenab[lenab<=0.2]=0
+
+lenab1=grayImage
+lenab1[lenab1>0.4]=1
+lenab1[lenab1<=0.4]=0
+
+lenab2=grayImage
+lenab2[lenab2>0.6]=1
+lenab2[lenab2<=0.6]=0
+
+lenab3=grayImage
+lenab3[lenab3>0.8]=1
+lenab3[lenab3<=0.8]=0
+
+lenab4=grayImage
+lenab4[lenab4>0.9]=1
+lenab4[lenab4<=0.9]=0
+
+par(mfrow=c(3,3),mar=c(0, 0, 3, 0))
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(grayImage, 0, 0, 1, 1)
+title("original image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab, 0, 0, 1, 1)
+title("threshold 0.2 image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab1, 0, 0, 1, 1)
+title("threshold 0.4 image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab2, 0, 0, 1, 1)
+title("threshold 0.6 image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab3, 0, 0, 1, 1)
+title("threshold 0.8 image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab4, 0, 0, 1, 1)
+title("threshold 0.9 image")
+
+```
+
+
+#Image Basics and Histograms, (own mountain image).
+```{r}
+image = readImage("mountain.jpg")
+display(image, method="raster")
+plot(image)
+str(image)
+
+#Convert image to gray values
+grayImage2 <- EBImage::channel(image,"gray")
+
+#The resulting matrix has size 400x400, 3 times smaller than the colored image matrix with size 400x400x3
+str(grayImage2)
+plot(grayImage2)
+
+#binary image
+lenab=grayImage2
+lenab[lenab>0.2]=1
+lenab[lenab<=0.2]=0
+
+lenab1=grayImage2
+lenab1[lenab1>0.4]=1
+lenab1[lenab1<=0.4]=0
+
+lenab2=grayImage2
+lenab2[lenab2>0.6]=1
+lenab2[lenab2<=0.6]=0
+
+lenab3=grayImage2
+lenab3[lenab3>0.8]=1
+lenab3[lenab3<=0.8]=0
+
+lenab4=grayImage2
+lenab4[lenab4>0.9]=1
+lenab4[lenab4<=0.9]=0
+
+par(mfrow=c(3,3),mar=c(0, 0, 3, 0))
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(grayImage2, 0, 0, 1, 1)
+title("original image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab, 0, 0, 1, 1)
+title("threshold 0.2 image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab1, 0, 0, 1, 1)
+title("threshold 0.4 image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab2, 0, 0, 1, 1)
+title("threshold 0.6 image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab3, 0, 0, 1, 1)
+title("threshold 0.8 image")
+
+plot.new()
+plot.window(xlim=c(0, 0.5), ylim=c(0, 0.5), asp=1)
+rasterImage(lenab4, 0, 0, 1, 1)
+title("threshold 0.9 image")
+```
+
+#Functions
+```{r}
+#Contrast sketching
+contrast <- function(contrast, a, b, y.a, y.b){
+  
+  alpha <- 0.2
+  beta <- 2
+  gamma <- 1
+  
+  contrast[contrast<a]=a*contrast
+  contrast[contrast<b && contrast>=a]=(beta*(contrast-a) + y.a)
+  contrast[contrast>=b]=(gamma*(contrast-b) +y.b)
+  
+  return(display(normalize(contrast), method = "raster"))
+
+}
+image1=floor(grayImage * 255)
+image2=floor(grayImage2 * 255)
+contrast(image1, 50,150,30,200)
+contrast(image2, 50,150,30,200)
+#Clipping
+clipping <- function(clipping, a, b){
+  beta <- 2
+  
+  clipping[clipping<a]=0
+  clipping[clipping<b && clipping>=a]=beta*(clipping-a)
+  clipping[clipping>=b]=beta*(b-a)
+  
+  return(display(normalize(clipping), method = "raster"))
+
+}
+image1=floor(grayImage * 255)
+image2=floor(grayImage2 * 255)
+clipping(image1,50,150)
+clipping(image2,50,150)
+
+
+#Range compression
+range.compression <- function(comp, c){
+ 
+  comp = c*log10(1+comp)
+  return(display(normalize(comp), method="raster"))
+}
+
+image1=floor(grayImage * 255)
+image2=floor(grayImage2 * 255)
+range.compression(image1,100)
+range.compression(image2,100)
+
+histimg=floor(grayImage * 255)
+histimg2=floor(grayImage2 * 255)
+
+#Comparison between gray scale image and its histograms with different bins (image1)
+par(mfrow=c(2,2))
+display(normalize(histimg),method = "raster")
+hist(histimg, breaks=c(0:255),main="Histogram with 255 breaks")
+hist(histimg, breaks=55,main="Histogram with 55 breaks")
+hist(histimg,breaks=5,main="Histogram with 5 breaks")
+
+#Comparison between gray scale image and its histograms with different bins (own mountain image)
+par(mfrow=c(2,2))
+display(normalize(histimg2),method = "raster")
+hist(histimg2, breaks=c(0:255),main="Histogram with 255 breaks")
+hist(histimg2, breaks=55,main="Histogram with 55 breaks")
+hist(histimg2,breaks=5,main="Histogram with 5 breaks")
+
+#Histogram equalization
+histeq <- function(x) {
+  # Supporse that x is a grayscale image (range 0 % 255)
+  L=256
+  
+  M=dim(x)[1]
+  N=dim(x)[2]
+  h=array(0,L+1)
+  
+  #This part computes the histogram
+  for (i in (1:L)) {
+    h[i]=length(which(x==(i-1)));
+  }
+  
+  #This part does the equalization
+  y=x;
+  s=sum(h);
+  
+  for (i in (1:L))  {
+    getthemall=which(x==(i-1));    
+    y[getthemall]=(sum(h[1:i])/s*(L-1));
+  }
+  return (floor(y))
+}
+
+equa=floor(grayImage * 255)
+eq = histeq(equa)
+range(eq)
+
+#Image and histogram for the equalization of the gray image (Image1)
+par(mfrow=c(2,2))
+display(normalize(equa), method="raster")
+display(normalize(eq), method="raster")
+hist(equa, breaks=c(0:255))
+hist(eq, breaks=c(0:255))
+
+equa=floor(grayImage2 * 255)
+eq = histeq(equa)
+range(eq)
+
+#Image and histogram for the equalization of the gray image (own mountain image)
+par(mfrow=c(2,2))
+display(normalize(equa), method="raster")
+display(normalize(eq), method="raster")
+hist(equa, breaks=c(0:255))
+hist(eq, breaks=c(0:255))
+```
+
+#Filters and Convolution
+```{r}
+#Read image and convert to gray scale
+image2 = readImage("image2.jpg")
+grayImage2 <- EBImage::channel(image2,"gray")
+plot(grayImage2)
+
+#take row 200 and plot it (image2)
+row200 <- grayImage2[,200]
+plot(row200)
+
+#vector for convolution (image2)
+vector <- c(0,0,0,1,0,0,0,0,0)
+
+#convolution filtering to the row (image2)
+filter <- filter(row200,vector, method = "convolution")
+convolved <- EBImage::channel(filter,"gray")
+plot(convolved)
+grayImage2[,200] <- filter
+plot(grayImage2)
+
+#Same procedure for own image
+mountain = readImage("mountain.jpg")
+grayImage2 <- EBImage::channel(mountain,"gray")
+plot(grayImage2)
+
+#take row 200 and plot it (own mountain image)
+row200 <- grayImage2[,200]
+plot(row200)
+
+#vector for convolution
+vector <- c(0,0,0,1,0,0,0,0,0)
+
+#convolution filtering to the row
+filter <- filter(row200,vector, method = "convolution")
+convolved <- EBImage::channel(filter,"gray")
+plot(convolved)
+grayImage2[,200] <- filter
+plot(grayImage2)
+```
+As we can see if we take a really close look at the original image and then the image after convolution, the row 200 gets shifted to the left due to the vector used.
+
+#2D and 1D filtering
+```{r}
+#Original gray image
+image2 = readImage("image2.jpg")
+grayImage2 <- EBImage::channel(image2,"gray")
+plot(grayImage2)
+
+#9x9 filter 
+filter9 =
+c(c(0.1, 0, 0, 0, 0, 0, 0, 0, 0),
+  c(0, 0.1, 0, 0, 0, 0, 0, 0, 0),
+  c(0, 0, 0.1, 0, 0, 0, 0, 0, 0),
+  c(0, 0, 0, 0.1, 0, 0, 0, 0, 0),
+  c(0, 0, 0, 0, 0.1, 0, 0, 0, 0),
+  c(0, 0, 0, 0, 0, 0.1, 0, 0, 0),
+  c(0, 0, 0, 0, 0, 0, 0.1, 0, 0),
+  c(0, 0, 0, 0, 0, 0, 0, 0.1, 0),
+  c(0, 0, 0, 0, 0, 0, 0, 0, 0.2))
+
+#convolving the original image with the 9x9 filter
+convolved2 <- filter(grayImage2,filter9, method = "convolution")
+final1 <- as.Image(convolved2)
+plot(final1)
+
+#convolving the original image with the 1D size 10 filter
+filter1<-c(0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1)
+convolved3 <- filter(grayImage2,filter1, method = "convolution")
+final2 <- as.Image(convolved3)
+plot(final2)
+
+transp1 = t(filter9)
+transp2 = t(filter1)
+
+#convolving the first filtered image with the transpose of the filter
+trans1 <- filter(final1,transp1, method = "convolution")
+t.final1 <- as.Image(trans1)
+plot(t.final1)
+
+#convolving the second filtered image with the transpose of the filter
+trans2 <- filter(final2,transp2, method = "convolution")
+t.final2 <- as.Image(trans2)
+plot(t.final2)
+
+
+#Same procedure for own image
+#Original gray image
+image2 = readImage("mountain.jpg")
+grayImage2 <- EBImage::channel(image2,"gray")
+plot(grayImage2)
+
+#9x9 filter 
+filter9 =
+c(c(0.1, 0, 0, 0, 0, 0, 0, 0, 0),
+  c(0, 0.1, 0, 0, 0, 0, 0, 0, 0),
+  c(0, 0, 0.1, 0, 0, 0, 0, 0, 0),
+  c(0, 0, 0, 0.1, 0, 0, 0, 0, 0),
+  c(0, 0, 0, 0, 0.1, 0, 0, 0, 0),
+  c(0, 0, 0, 0, 0, 0.1, 0, 0, 0),
+  c(0, 0, 0, 0, 0, 0, 0.1, 0, 0),
+  c(0, 0, 0, 0, 0, 0, 0, 0.1, 0),
+  c(0, 0, 0, 0, 0, 0, 0, 0, 0.2))
+
+#convolving the original image with the 9x9 filter
+convolved2 <- filter(grayImage2,filter9, method = "convolution")
+final1 <- as.Image(convolved2)
+plot(final1)
+
+#convolving the original image with the 1D size 10 filter
+filter1<-c(0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1)
+convolved3 <- filter(grayImage2,filter1, method = "convolution")
+final2 <- as.Image(convolved3)
+plot(final2)
+
+transp1 = t(filter9)
+transp2 = t(filter1)
+
+#convolving the first filtered image with the transpose of the filter
+trans1 <- filter(final1,transp1, method = "convolution")
+t.final1 <- as.Image(trans1)
+plot(t.final1)
+
+#convolving the second filtered image with the transpose of the filter
+trans2 <- filter(final2,transp2, method = "convolution")
+t.final2 <- as.Image(trans2)
+plot(t.final2)
+
+```
+When convolving an image with its filter each row gets shifted independently which makes the photo blurry, if the filter gets transpose, then you might shift the columns instead of the rows or shift the rows in different directions. Therefore a different type of blurriness occurs, normally causing the image to appear more blurry.
+
+#Highpass filtering
+```{r}
+
+#Original gray image
+image2 = readImage("image2.jpg")
+grayImage2 <- EBImage::channel(image2,"gray")
+plot(grayImage2)
+
+#the high pass (hp) filter
+hp=c(c(0, -1, 0),c(-1, 4, -1),c(0, -1, 0))
+
+#Convolve the image with the hp filter and then normalize the results
+highpass <- filter(grayImage2,hp,method="convolution")
+hpImage <- as.Image(normalize(highpass))
+plot(hpImage)
+
+#Same procedure for own image
+#Original gray image
+image2 = readImage("mountain.jpg")
+grayImage2 <- EBImage::channel(image2,"gray")
+plot(grayImage2)
+
+#the high pass (hp) filter
+hp=c(c(0, -1, 0),c(-1, 4, -1),c(0, -1, 0))
+
+#Convolve the image with the hp filter and then normalize the results
+highpass <- filter(grayImage2,hp,method="convolution")
+hpImage <- as.Image(normalize(highpass))
+plot(hpImage)
+
+```
+
+#Edge Detection
+```{r}
+library(imager)
+#Loading Lena image
+image3 = readImage("image3.png")
+image3= as.cimg(image3)
+plot(image3)
+
+#Gray scale image
+grayImage3 <- grayscale(image3)
+plot(grayImage3)
+
+gradient <- imgradient(grayImage3,"xy")
+
+dx <- imgradient(grayImage3,"x")
+dy <- imgradient(grayImage3,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Gradient magnitude for grayscale")
+
+lenab=grayImage3
+lenab[lenab>0.05]=1
+lenab[lenab<=0.05]=0
+
+dx <- imgradient(lenab,"x")
+dy <- imgradient(lenab,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threshold 0.05")
+
+lenab1=grayImage3
+lenab1[lenab1>0.25]=1
+lenab1[lenab1<=0.25]=0
+
+dx <- imgradient(lenab1,"x")
+dy <- imgradient(lenab1,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threshold 0.25")
+
+lenab2=grayImage3
+lenab2[lenab2>0.5]=1
+lenab2[lenab2<=0.5]=0
+dx <- imgradient(lenab2,"x")
+dy <- imgradient(lenab2,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threshold 0.5")
+
+lenab3=grayImage3
+lenab3[lenab3>0.75]=1
+lenab3[lenab3<=0.75]=0
+dx <- imgradient(lenab3,"x")
+dy <- imgradient(lenab3,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threshold 0.75")
+
+lenab4=grayImage3
+lenab4[lenab4>0.999]=1
+lenab4[lenab4<=0.999]=0
+dx <- imgradient(lenab4,"x")
+dy <- imgradient(lenab4,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threhsold 1")
+
+#Loading my own image
+image3 = readImage("mountain.jpg")
+image3= as.cimg(image3)
+plot(image3)
+
+#Gray scale image
+grayImage3 <- grayscale(image3)
+plot(grayImage3)
+
+gradient <- imgradient(grayImage3,"xy")
+
+dx <- imgradient(grayImage3,"x")
+dy <- imgradient(grayImage3,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Gradient magnitude for grayscale")
+
+lenab=grayImage3
+lenab[lenab>0.05]=1
+lenab[lenab<=0.05]=0
+
+dx <- imgradient(lenab,"x")
+dy <- imgradient(lenab,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threshold 0.05")
+
+lenab1=grayImage3
+lenab1[lenab1>0.25]=1
+lenab1[lenab1<=0.25]=0
+
+dx <- imgradient(lenab1,"x")
+dy <- imgradient(lenab1,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threshold 0.25")
+
+lenab2=grayImage3
+lenab2[lenab2>0.5]=1
+lenab2[lenab2<=0.5]=0
+dx <- imgradient(lenab2,"x")
+dy <- imgradient(lenab2,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threshold 0.5")
+
+lenab3=grayImage3
+lenab3[lenab3>0.75]=1
+lenab3[lenab3<=0.75]=0
+dx <- imgradient(lenab3,"x")
+dy <- imgradient(lenab3,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threshold 0.75")
+
+lenab4=grayImage3
+lenab4[lenab4>0.999]=1
+lenab4[lenab4<=0.999]=0
+dx <- imgradient(lenab4,"x")
+dy <- imgradient(lenab4,"y")
+magnitude <- sqrt(dx^2+dy^2)
+plot(magnitude,main="Threhsold 1")
+
+apply <- function(image, func = c("prewitt", "sobel"), orientation = c("horizontal", "vertical", "both")){
+  
+  prewittX <- c(c(-1,0,1),c(-1,0,1),c(-1,0,1)) 
+  prewittY <- c(c(-1,-1,-1),c(0,0,0),c(1,1,1)) 
+  
+  sobelX <- c(c(-1,0,1),c(-2,0,2),c(-1,0,1))
+  sobelY <- c(c(-1,-2,-1),c(0,0,0),c(1,2,1))
+  
+  
+  if (func == "prewitt"){
+    x <- prewittX
+    y <- prewittY
+  } else if(func == "sobel"){
+    x <- sobelX
+    y <- sobelY
+  }
+  
+
+  if(orientation == "horizontal"){
+    return(plot(as.Image(filter(image, x, method="convolution"))))
+  } else if (orientation == "vertical"){
+    return(plot(as.Image(filter(image, y, method="convolution"))))
+  } else if(orientation=="both"){
+    image= as.cimg(image)
+    x <- filter(image, x)
+    y <- filter(image, y)
+    x= as.cimg(x)
+    y= as.cimg(y)
+    dx <- imgradient(x,"x")
+    dy <- imgradient(y,"y")
+    magnitude <- sqrt(dx^2+dy^2)
+    return( plot(as.Image(magnitude)))
+  }
+}
+image3 = readImage("image3.png")
+grayImage3 = EBImage::channel(image3,"gray")
+apply(grayImage3,func = "prewitt", orientation = "vertical")
+
+image2 = readImage("mountain.jpg")
+grayImage2 <- EBImage::channel(image2,"gray")
+apply(grayImage2,func = "sobel", orientation = "vertical")
+
+```
+
+
+
+
+

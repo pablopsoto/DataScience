@@ -1,0 +1,360 @@
+---
+title: "Clinic5"
+author: "Pablo Perez"
+date: "3/22/2018"
+output: html_document
+---
+
+```{r,warning=FALSE, message=FALSE}
+library(TSA)
+library(glmnet)
+library(DAAG)
+library(MASS)
+library(lattice)
+library(doBy)
+library(corrplot)
+library(dplyr)
+library(tidyr)
+library(leaps)
+library(ggplot2)
+library(caret)
+library(broom)
+library(ptw)
+library(pracma)
+```
+
+```{r}
+
+gin <- read.csv2("gin.csv", header = TRUE, dec=",",sep=";")
+
+gin.correl = ts(gin[,1],start=1968,freq=12)
+plot(gin.correl,lw=2,col="blue")
+
+acf(gin.correl, lag.max = 20, type = "correlation", plot = T, drop.lag.0 = F, main = "Correlogram of the gin data")
+
+```
+As we can see in the correlogram, there is a structure in the plot indicating that there is significant change in the time series. This is observed as lines fall way out of the significance region of 0.95 which is indicated by the blue doted lines.
+
+```{r}
+
+## Fit basic polynomial regression models to both 
+tl = seq(1968,2017,length=length(gin.correl))
+tl2 = tl^2
+polyGin = lm(gin.correl ~ tl + tl2)
+summary(polyGin)
+plot(gin.correl,lw=2,col="blue")
+lines(polyGin$fit~tl,lw=2,col="red")
+
+acf(gin.correl)
+pacf(gin.correl)
+
+```
+
+
+```{r}
+## Fit null ARIMA models (mean only) to each data set
+nullGin = arima(gin.correl,order=c(0,0,0))
+
+## Plot the null model predictions
+#Remember null model is the one that takes the mean, as prediction
+plot(gin.correl,xlim=c(1968,2030),lw=2,col="blue")
+lines(predict(nullGin,n.ahead=150)$pred,lw=2,col="red")
+lines(predict(nullGin,n.ahead=150)$pred+1.65*predict(nullGin,n.ahead=150)$se,lw=2,lty="dotted",col="red")
+lines(predict(nullGin,n.ahead=150)$pred-1.65*predict(nullGin,n.ahead=150)$se,lw=2,lty="dotted",col="red")
+
+
+ar1Gin = ar(gin.correl, order=1)
+summary(ar1Gin)
+ar1Gin
+
+## Plot the ar model predictions
+plot(gin.correl,xlim=c(1968,2030),lw=2,col="blue")
+lines(predict(ar1Gin,n.ahead=150)$pred,lw=2,col="red")
+lines(predict(ar1Gin,n.ahead=150)$pred+1.6*predict(ar1Gin,n.ahead=150)$se,lw=2,lty="dotted",col="red")
+lines(predict(ar1Gin,n.ahead=150)$pred-1.5*predict(ar1Gin,n.ahead=150)$se,lw=2,lty="dotted",col="red")
+```
+
+
+```{r}
+
+gin.spec <- spec.pgram(gin.correl,log="no", taper=0)
+
+spGin <- gin.spec$freq*12
+
+plot(gin.spec$spec~spGin,xlab="period",ylab="spectral density",type="h")
+title("Gin periodogram")
+
+spGin <- gin.spec$freq[order(gin.spec$spec)]
+top3 <- tail(spGin,3)
+
+top3
+
+summary(spGin)
+```
+
+#Load image and find DFT
+```{r}
+library("EBImage")
+
+image <- readImage("textDA.png")
+image=EBImage::channel(image, "gray")
+display(image, method="raster")
+
+lincoln <- readImage("lincoln.jpg")
+lincoln=EBImage::channel(lincoln, "gray")
+display(lincoln, method="raster")
+
+# This function is used to place place the dc-component in the middle (like a 2D fftshift)
+# if m is a square 2^n matrix, center_matrix(center_matrix(m)) == m
+center_matrix <- function(m) {
+  dims <- dim(m)
+  m1 <- cbind(m[,(dims[2]/2+1):dims[2]],m[,1:(dims[2]/2)])
+  rbind(m1[(dims[1]/2+1):dims[1],],m1[1:(dims[1]/2),])
+}
+
+#Apply Fourier Transform
+image_f <- fft(image)
+lincoln_f <- fft(lincoln)
+
+#compute magnitudes
+image_m <- sqrt(abs(image_f))
+lincoln_m <- sqrt(abs(lincoln_f))
+
+#shift frequencies to the middle (like fftshift)
+image_c <- center_matrix(image_m)
+lincoln_c <- center_matrix(lincoln_m)
+
+par(mfrow=c(1,2))
+display(image, method="raster")
+title("Original grayscale image")
+display(image_c, method="raster")
+title("2D DFT magnitude")
+
+par(mfrow=c(1,2))
+display(lincoln, method="raster")
+title("Original grayscale image")
+display(lincoln_c, method="raster")
+title("2D DFT magnitude")
+```
+
+#Log of 2D DFT
+log transform to visualise better the 2D DFT magnitude
+```{r}
+image.log <- 0.6*log(image_c, base = 10)
+lincoln.log <- 0.6*log(lincoln_c, base = 10)
+
+par(mfrow=c(1,2))
+display(image,method="raster")
+title("Original grayscale image")
+display(image.log, method="raster")
+title("Log transf of 2D DFT magnitude")
+
+par(mfrow=c(1,2))
+display(lincoln, method="raster")
+title("Original grayscale image")
+display(lincoln.log, method="raster")
+title("Log transf of 2D DFT magnitude")
+```
+Both power spectrums show high frequency energy in waves along the X-direction and Y-direction although the text image is more clear so values are more visible all along the spectrum.
+
+#low pass filter
+```{r}
+#Cut off threshold 55
+sizeim =dim(image_f)[1]  #This is the size of the image (we are working with same width/height)
+size=55       #Approx. size of the discoid object (we assume same width/height)
+w0 = makeBrush(size = size, shape = 'disc')
+#display(normalize(w0), method="raster")
+
+# This creates a disc-sized element of 55, let's pad the rest with 0
+# Note: There might be a more effective/different way to do this. Feel free to improve 
+w1=padzeros(w0,(sizeim-size)/2,side="both")
+w1=t(w1)
+w=padzeros(w1,(sizeim-size)/2,side="both")
+#that gives us a 255x255 filter, I need more zeros to pad
+w=rbind(w,array(0,255))
+w=cbind(w,array(0,256))
+#Then I need to center my element such as that the discoid is in the center
+w=center_matrix(center_matrix(w))
+
+display(normalize(w), method="raster")
+
+#Remember that filtering in frequency field means just a multiplication!
+#Notice that we apply the filter on the DC-centered-image
+clown_flow <- w * as.Image(center_matrix(image_f))
+display(normalize(abs(clown_flow)), method="raster")
+
+# place the DC component back to its place before the inverse fourier
+clown_low  <- fft(center_matrix(clown_flow), inverse=TRUE)
+display(normalize(abs(clown_low)), method="raster")
+
+
+#Cut off threshold 105
+sizeim =dim(image_f)[1]  #This is the size of the image (we are working with same width/height)
+size=105       #Approx. size of the discoid object (we assume same width/height)
+w0 = makeBrush(size = size, shape = 'disc')
+#display(normalize(w0), method="raster")
+
+# This creates a disc-sized element of 55, let's pad the rest with 0
+# Note: There might be a more effective/different way to do this. Feel free to improve 
+w1=padzeros(w0,(sizeim-size)/2,side="both")
+w1=t(w1)
+w=padzeros(w1,(sizeim-size)/2,side="both")
+#that gives us a 255x255 filter, I need more zeros to pad
+w=rbind(w,array(0,255))
+w=cbind(w,array(0,256))
+#Then I need to center my element such as that the discoid is in the center
+w=center_matrix(center_matrix(w))
+
+display(normalize(w), method="raster")
+
+#Remember that filtering in frequency field means just a multiplication!
+#Notice that we apply the filter on the DC-centered-image
+clown_flow <- w * as.Image(center_matrix(image_f))
+display(normalize(abs(clown_flow)), method="raster")
+
+# place the DC component back to its place before the inverse fourier
+clown_low  <- fft(center_matrix(clown_flow), inverse=TRUE)
+display(normalize(abs(clown_low)), method="raster")
+
+#Cut off threshold 200
+sizeim =dim(image_f)[1]  #This is the size of the image (we are working with same width/height)
+size=201     #Approx. size of the discoid object (we assume same width/height)
+w0 = makeBrush(size = size, shape = 'disc')
+#display(normalize(w0), method="raster")
+
+# This creates a disc-sized element of 55, let's pad the rest with 0
+# Note: There might be a more effective/different way to do this. Feel free to improve 
+w1=padzeros(w0,(sizeim-size)/2,side="both")
+w1=t(w1)
+w=padzeros(w1,(sizeim-size)/2,side="both")
+#that gives us a 255x255 filter, I need more zeros to pad
+w=rbind(w,array(0,255))
+w=cbind(w,array(0,256))
+#Then I need to center my element such as that the discoid is in the center
+w=center_matrix(center_matrix(w))
+
+display(normalize(w), method="raster")
+
+#Remember that filtering in frequency field means just a multiplication!
+#Notice that we apply the filter on the DC-centered-image
+clown_flow <- w * as.Image(center_matrix(image_f))
+display(normalize(abs(clown_flow)), method="raster")
+
+# place the DC component back to its place before the inverse fourier
+clown_low  <- fft(center_matrix(clown_flow), inverse=TRUE)
+display(normalize(abs(clown_low)), method="raster")
+
+```
+Thew low pass filter blurs the image and as the threshold increases the less powerful it is to blur. Therefore images with low threshold are more blury.
+
+high pass filter
+```{r}
+
+sizeim = dim(image_f)[1]
+size = 55
+w0=makeBrush(size=size, shape='disc')
+display(normalize(w0), method="raster")
+  
+# This creates a disc-sized element of 55, let's pad the rest with 0
+# Note: There might be a more effective/different way to do this. Feel free to improve 
+w1=padzeros(w0,((sizeim-size)/2),side="both")
+w1=t(w1)
+w=padzeros(w1,((sizeim-size)/2),side="both")
+#that gives us a 255x255 filter, I need more zeros to pad
+w=rbind(w,array(0,255))
+w=cbind(w,array(0,256))
+  
+#Then I need to center my element such as that the discoid is in the center
+w=center_matrix(center_matrix(w))
+display(normalize(w), method="raster")
+  
+w <- apply(w, 1:2, function(x) x=abs(x-1))
+  
+#Remember that filtering in frequency field means just a multiplication!
+#Notice that we apply the filter on the DC-centered-image
+image_flow <- w * as.Image(center_matrix(image_f))
+display(normalize(abs(image_flow)), method="raster")
+  
+# place the DC component back to its place before the inverse fourier
+image_low  <- fft(center_matrix(image_flow), inverse=TRUE)
+image_filtered <- normalize(abs(image_low))
+display(image_filtered, method="raster")                            
+```
+
+The high pass filter brightens the edges in the images. Defining the threshold helps indicate how much attention we put to noise.
+
+```{r}
+artist1 <- readImage("artist1.jpg")
+artist2 <- readImage("artist2.jpg")
+artist1=EBImage::channel(artist1, "gray")
+artist2=EBImage::channel(artist2, "gray")
+display(artist1, method = "raster")
+display(artist2, method = "raster")
+
+artist1_f <- fft(artist1)
+artist2_f <- fft(artist2)
+
+sizeim = dim(artist1_f)[1]
+size = 55
+w0=makeBrush(size=size, shape='disc')
+
+fill_in <- 1
+if(mod(sizeim,2) == 0){
+  fill_in <- 0
+}
+
+# This creates a disc-sized element of 55, let's pad the rest with 0
+# Note: There might be a more effective/different way to do this. Feel free to improve 
+w1=padzeros(w0,((sizeim-size)/2)-fill_in,side="both")
+w1=t(w1)
+w=padzeros(w1,((sizeim-size)/2)-fill_in,side="both")
+#that gives us a 255x255 filter, I need more zeros to pad
+w=rbind(w,array(0,sizeim-fill_in-1))
+w=cbind(w,array(0,sizeim-fill_in))
+
+#Then I need to center my element such as that the discoid is in the center
+w=center_matrix(center_matrix(w))
+
+#Remember that filtering in frequency field means just a multiplication!
+#Notice that we apply the filter on the DC-centered-image
+image_flow <- w * as.Image(center_matrix(artist1_f))
+#display(normalize(abs(image_flow)), method="raster")
+
+# place the DC component back to its place before the inverse fourier
+image_low  <- fft(center_matrix(image_flow), inverse=TRUE)
+art1.filt <- normalize(abs(image_low))
+
+sizeim = dim(artist2_f)[1]
+size = 55
+w0=makeBrush(size=size, shape='disc')
+
+fill_in <- 1
+if(mod(sizeim,2) == 0){
+  fill_in <- 0
+}
+# This creates a disc-sized element of 55, let's pad the rest with 0
+# Note: There might be a more effective/different way to do this. Feel free to improve 
+w1=padzeros(w0,((sizeim-size)/2)-fill_in,side="both")
+w1=t(w1)
+w=padzeros(w1,((sizeim-size)/2)-fill_in,side="both")
+#that gives us a 255x255 filter, I need more zeros to pad
+w=rbind(w,array(0,sizeim-fill_in-1))
+w=cbind(w,array(0,sizeim-fill_in))
+
+#Then I need to center my element such as that the discoid is in the center
+w=center_matrix(center_matrix(w))
+
+w <- apply(w, 1:2, function(x) x=abs(x-1))
+
+#Remember that filtering in frequency field means just a multiplication!
+#Notice that we apply the filter on the DC-centered-image
+image_flow <- w * as.Image(center_matrix(artist2_f))
+#display(normalize(abs(image_flow)), method="raster")
+
+# place the DC component back to its place before the inverse fourier
+image_low  <- fft(center_matrix(image_flow), inverse=TRUE)
+art2.filt <- normalize(abs(image_low))
+  
+display(art1.filt+art2.filt, method = "raster")
+title("Mixed images of artist with low and high pass filter")
+```

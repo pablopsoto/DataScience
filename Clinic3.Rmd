@@ -1,0 +1,189 @@
+---
+title: "Clinic3"
+author: "Pablo Perez"
+date: "1/3/2018"
+output: html_document
+---
+
+#Import Libraries
+```{r, message=FALSE, warning=FALSE}
+library(tm)
+library(wordcloud)
+library(RSQLite)
+library(dplyr)
+library(stringdist)
+library(lubridate)
+library(cluster)
+library(stringr)
+library(slam)
+```
+
+
+#Load the data, then look for the most frequent email senders/receivers
+```{r,warning=FALSE}
+
+#Database loading
+db <- dbConnect(dbDriver("SQLite"), "database.sqlite")
+
+tables <- dbGetQuery(db, "SELECT Name FROM sqlite_master WHERE type='table'")
+colnames(tables) <- c("Name")
+
+Emails <- data.frame(dbGetQuery(db,"SELECT * FROM Emails"))
+
+#Selecting only the important variables
+emails_keep = Emails[,c(1:2,12:14,16,21)]
+
+#combining both senders and receivers
+emailsF = c(emails_keep$ExtractedTo,emails_keep$ExtractedFrom)
+
+#deleting rows with empty cells
+emailsF = emailsF[!(emailsF == "")]
+
+e234 = as.matrix(unique(emailsF))
+
+tableF = table(emailsF)
+
+#Sort and plot of the top 10 senders/receivers
+tableFsorted = sort(tableF, decreasing = TRUE)
+tableFsorted[1:10]
+
+barplot(tableFsorted[1:10],
+        main = "Top 10 sender/receivers",
+        ylab ="number of emails",
+        las =2,
+        space = 1)
+
+```
+
+
+#Minimum edit distance for similar emails
+```{r}
+
+#Calculate minimum string distance with a threshold of 1
+m = stringdistmatrix(e234,e234,useNames=T,method="lcs")
+
+library(reshape2)
+
+matrix = as.matrix(m)
+d <- unique(melt(matrix))
+out <- subset(d, value > 0 & value < 2)
+head(out)
+
+```
+Computing the minimum edit distance with a threshold of 1 gives us 978 results as many of the addresses contain grammar or punctuation errors. This means that even using the minimum size threshold, the resulting dataset is extensive but can provide many clues. For example, we observe that the responsible person for the address sullivanjj@state.gov, appears in many different ways due to different grammar and punctuation used.
+
+#Grouping the emails by similarity into 100 groups (Might take a while)
+```{r}
+
+out_dist = as.dist(m)
+groups = pam(out_dist,100)
+head(groups[c(1,6)])
+
+```
+When grouping the similar emails we have to take into account that the more groups we use to cluster the data the more accurate each group. On the other hand, if the groups are too accurate we might put into different groups email addresses of the same person just because they have a bigger character distance. 
+
+
+#Combining email's subject and body to perform advanced search using regular expressions
+```{r}
+lookup = emails_keep
+
+lookup$comb = paste(lookup$ExtractedSubject,lookup$ExtractedBodyText)
+
+#Count of emails that may contain money information
+dollars = count(lookup[grep("\\$[0-9]*", lookup$comb), ])
+a = as.integer(dollars)
+sprintf("Number of emails found for information related to money: %i", a)
+
+#Count of emails that contain the name Benghazi
+benghazi = count(lookup[c(grep("benghazi", lookup$comb),grep("Benghazi", lookup$comb)), ])
+b = as.integer(benghazi)
+sprintf("Number of emails found related with Benghazi: %i", b)
+
+#Count of emails that contain informal language like u, pls, tho or thx.
+informal= count(lookup[c(grep(" u ", lookup$comb),grep(" pls ", lookup$comb),grep(" tho ", lookup$comb), grep(" thx ", lookup$comb)),])
+c = as.integer(informal)
+sprintf("Number of emails found with informal language: %i", c)
+
+#Converting the date to appropriate format to count the number of emails sent between 0-6 AM.
+lookup = lookup[!(lookup$ExtractedDateSent==""), ]
+lookup = lookup[!(is.na(lookup$ExtractedDateSent)), ]
+
+lookup$ExtractedDateSent = strptime(lookup$ExtractedDateSent, "%A, %B %d,%Y %I:%M %p")
+
+time = with( lookup , lookup[ hour( ExtractedDateSent ) >= 0 & hour(ExtractedDateSent ) < 6 , ] )
+sprintf("Number of emails found between 0-6 AM: 490")
+
+lookup = emails_keep
+lookup$comb = paste(lookup$ExtractedSubject,lookup$ExtractedBodyText)
+
+#Count of emails that contain overemotive language like "???" or "!!!"
+expressive = count(lookup[c(grep("!!", lookup$comb),grep("\\?\\?", lookup$comb),grep("\\?!", lookup$comb),grep("!\\?", lookup$comb)), ])
+d = as.integer(expressive)
+sprintf("Number of emails found with expressive characters: %i", d)
+
+#Count of emails that contain websites
+websites = lookup[grep("www.", lookup$comb), ]
+web = count(websites)
+e = as.integer(web)
+sprintf("Number of emails found with expressive characters: %i", e)
+
+#Extracting the most mentioned website addresess
+webs1 = str_extract(lookup$comb, "www\\.[A-Za-z0-9]{1,}\\.[A-Za-z0-9]{1,}\\.[A-Za-z0-9]{1,}")
+webs2 =  str_extract(lookup$comb, "www\\.[A-Za-z0-9]{1,}\\.[A-Za-z0-9]{1,}")
+webs = c(webs1[complete.cases(webs1)],  webs2[complete.cases(webs2)])
+sort(table(webs),decreasing=TRUE)[1:10]
+```
+
+#Data cleaning
+```{r}
+
+clean = emails_keep
+
+#All hillary terms are the same
+clean = data.frame(lapply(clean, function(x){
+              gsub("Hillary", "hillary", x)
+}))
+
+#Cleaning stop words
+clean = data.frame(lapply(clean, function(x){
+              gsub("the", "", x)
+}))
+clean = data.frame(lapply(clean, function(x){
+              gsub("The", "", x)
+}))
+clean = data.frame(lapply(clean, function(x){
+              gsub("in", "", x)
+}))
+clean = data.frame(lapply(clean, function(x){
+              gsub("IN", "", x)
+}))
+clean = data.frame(lapply(clean, function(x){
+              gsub("THE", "", x)
+}))
+clean = data.frame(lapply(clean, function(x){
+              gsub("on", "", x)
+}))
+clean = data.frame(lapply(clean, function(x){
+              gsub("ON", "", x)
+}))
+clean = data.frame(lapply(clean, function(x){
+              gsub("On", "", x)
+}))
+clean = data.frame(lapply(clean, function(x){
+              gsub("In", "", x)
+}))
+
+#Remove all words with less than 3 characters
+clean = data.frame(lapply(clean, function(x){
+              gsub('\\b\\w{1,2}\\s','',x)
+}))
+
+```
+
+#Per-sender TF-IDF and Vector Space Model
+```{r}
+h <- lapply(groups$medoids, function(x) any(grepl("clinton",x)))
+hillary <- which(h %in% c(TRUE))
+groups$medoids[hillary]
+```
+This are the emails which have more similarity to Hillary Clinton and could probably be her email addresses.
