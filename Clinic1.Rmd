@@ -1,0 +1,131 @@
+---
+title: "TedTalk Events"
+author: "Pablo Perez Soto I6116869"
+output: html_document
+---
+
+## Summary
+
+Exploratory data analysis for Ted talk events.
+
+### EDA
+
+Import libraries
+```{r, message=FALSE, warning=FALSE}
+library(DAAG)
+library(MASS)
+library(lattice)
+library(doBy)
+library(corrplot)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(anytime)
+library(chron)
+library(lubridate)
+```
+
+Reading the data, swaping incorrect values with NA
+```{r}
+tedTalks <- read.csv2("ted.csv", header = TRUE, na.strings = c("999", "9999", "99999") )
+
+#Overview of the structure of the dataset
+head(tedTalks)
+
+#Overview of each variable including the data type
+str(tedTalks)
+
+#Statistics for each variable (Min, Meadian, Mean, Quartiles, Max)
+summary(tedTalks)
+```
+
+Cleaning variables
+```{r}
+#Change NA values to the mean of that variable so that no important data is lost
+tedTalks$num_speaker[is.na(tedTalks$num_speaker)] <- mean(tedTalks$num_speaker, na.rm= TRUE)
+
+tedTalks$languages[is.na(tedTalks$languages)] <- mean(tedTalks$languages, na.rm = TRUE)
+
+tedTalks$duration[is.na(tedTalks$duration)] <- mean(tedTalks$duration, na.rm = TRUE)
+
+fDate <- tedTalks$film_date
+pDate <- tedTalks$published_date
+
+#Dates changed to Year-Month-Day format
+tedTalks$film_date <- anydate(tedTalks$film_date)
+tedTalks$published_date <- anydate(tedTalks$published_date)
+
+summary(tedTalks)
+
+#One of the highest correlation between variables is found when comparing views and comments, but still it is weakly correlated. This correlation is logical as more people view an event it is more likely that they leave a comment:
+cor(tedTalks$views,tedTalks$X...comments)
+
+plot(tedTalks$views,tedTalks$X...comments,
+     main="Scatterplot of views and comments", 
+  	 xlab="Views",
+     ylab="Comments")
+
+#The highest correlation is obtained when comparing the film date and the published date:
+cor(fDate,pDate)
+
+plot(fDate,pDate,
+     main="Scatterplot of film and published dates", 
+  	 xlab="Film date",
+     ylab="Published date")
+
+#The correlation between the film date and the views is really low, which means that more recent Ted Talks do not receive more audience.
+cor(fDate, tedTalks$views)
+
+#The correlation between substitle languages and views is also low, which may explain that unpopular events also got translated to many languages
+cor(tedTalks$languages, tedTalks$views)
+
+```
+
+Which events got viewed the most?
+```{r}
+nsdata <- orderBy(~-views, data = tedTalks)
+fdata <- nsdata[, c("event", "views","X...comments")]
+qdata <- fdata[1:20,c("event","views")]
+
+#code to rotate and adjust labels in barplots found here: https://stackoverflow.com/questions/10286473/rotating-x-axis-labels-in-r-for-barplot
+
+barplot(qdata$views,
+        main = "Views per event (20 most viewed events)",
+        ylab ="Views",
+        ylim = c(0,10000000+max(qdata$views)),
+        space = 1)
+text(seq(1.6,40,by=2), par("usr")[3]-0.5, 
+     srt = 60, adj= 1.1, xpd = TRUE,
+     labels = paste(qdata$event), cex=0.65)
+
+#The theme of the 20 most viewed events vary but they are mostly related to human feelings or features like creativity, leadership, orgasms... topics that give us more insight on how we are.
+ndata <- nsdata[, c("name", "views","X...comments")]
+evedata <- ndata[1:20,c("name","views")]
+evedata
+
+#The duration of the 20 most viewed events
+ndata <- nsdata[, c("duration", "views","X...comments")]
+evedata <- ndata[1:20,c("duration","views")]
+evedata
+
+#We can observe that the mean for the duration of the most viewed events is considerably higher to the mean duration of all the events (826).
+mean(evedata$duration)
+
+#The languages of the 20 most viewed events
+ndata <- nsdata[, c("languages", "views","X...comments")]
+evedata <- ndata[1:20,c("languages","views")]
+evedata
+
+#We can observe that the mean for the languages of the most viewed events is also considerably higher to the mean duration of all the events (27). This might mean that if an event is popular, then it gets translated to many other languages.
+mean(evedata$languages)
+
+
+```
+
+This is a good summary for the statistics of whole events, even if they have many talks. Therefore we can see the mean views of all the talks for each event. Ordered in decreasing views.
+```{r}
+cdata <- summaryBy(views ~ event  + comments, data=tedTalks, FUN=c(length,mean))
+cdata <- orderBy(~-views.mean, data = cdata)
+cdata
+```
+     
